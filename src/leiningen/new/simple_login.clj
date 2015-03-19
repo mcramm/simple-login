@@ -17,6 +17,6 @@
              [".gitignore" (render ".gitignore" data)]
              ["src/{{sanitized}}/handler.clj" (render "handler.clj" data)]
              ["src/{{sanitized}}/views.clj" (render "views.clj" data)]
-             ["src/{{sanitized}}/stores.clj" (render "stores.clj" data)]
-             ["src/{{sanitized}}/stores/pg.clj" (render "stores/pg.clj" data)]
-             ["src/{{sanitized}}/stores/atomstore.clj" (render "stores/atomstore.clj" data)])))
+             ["src/{{sanitized}}/user.clj" (render "user.clj" data)]
+             ["src/{{sanitized}}/auth.clj" (render "auth.clj" data)]
+             ["src/{{sanitized}}/stores.clj" (render "stores.clj" data)])))

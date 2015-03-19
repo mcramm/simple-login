@@ -1,33 +1,39 @@
 (ns {{name}}.stores
-  (:require [clojure.java.jdbc :as jdbc]))
+  (:require [clojure.java.jdbc :as jdbc]
+            [environ.core :refer [env]])
+  (:import com.mchange.v2.c3p0.ComboPooledDataSource))
 
-(defprotocol IUsers
-  (find-user-by-email [this email])
-  (find-user-by-id [this id])
-  (put-user! [this user]))
+;; Atom Store
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def user-id (atom 0))
+(defrecord AtomStore [data])
 
-(defrecord AtomStore [data]
-  IUsers
-  (find-user-by-email [this email]
-    (first (filter (fn [user] (= email (:email user)))
-                   (get (deref (:data this)) :users))))
-  (find-user-by-id [this id]
-    (first (filter (fn [user] (= id (:id user)))
-                   (get (deref (:data this)) :users))))
-  (put-user! [this user]
-    (let [user (assoc user :id (swap! user-id inc))]
-      (swap! (:data this) update-in [:users] conj user)
-      user)))
+(defn create-atom-store []
+  (->AtomStore (atom {:users []})) )
 
-(defrecord JdbcStore [conn]
-  IUsers
-  (find-user-by-email [this email]
-    (first (jdbc/query (:conn this)
-                       ["SELECT * FROM users WHERE email = ?" email])))
-  (find-user-by-id [this id]
-    (first (jdbc/query (:conn this)
-                       ["SELECT * FROM users WHERE id = ?" id])))
-  (put-user! [this user]
-    (first (jdbc/insert! (:conn this) :users user))))
+;; JDBC Store
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defrecord JdbcStore [conn])
+
+(defn pool [spec]
+  (let [cpds (doto (ComboPooledDataSource.)
+               (.setDriverClass  (:classname spec))
+               (.setJdbcUrl  (str "jdbc:"  (:subprotocol spec) ":"  (:subname spec)))
+               (.setUser  (:user spec))
+               (.setPassword  (:password spec))
+               ;; expire excess connections after 30 minutes of inactivity:
+               (.setMaxIdleTimeExcessConnections  (* 30 60))
+               ;; expire connections after 3 hours of inactivity:
+               (.setMaxIdleTime  (* 3 60 60)))]
+    {:datasource cpds}))
+
+(defn create-pg-store [spec]
+  (let [pooled-db (delay (pool spec))
+        db-connection (fn [] @pooled-db)]
+    (->JdbcStore (db-connection))))
+
+(defonce db-spec {:subprotocol "postgresql"
+                  :subname     (env :database-url)
+                  :user        (env :database-user)
+                  :password    (env :database-password)})
